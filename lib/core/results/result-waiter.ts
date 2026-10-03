@@ -75,7 +75,7 @@ export class ResultWaiter<T = unknown> {
 
     try {
       for (let delay = 25; ; delay = Math.min(delay * 2, 1_000)) {
-        const read = wait.outcome || wait.closed ? SETTLED : await this.read(id, wait);
+        const read = wait.outcome || wait.closed ? SETTLED : await this.readOrGiveWay(id, wait);
         if (wait.outcome) {
           return unwrap(wait.outcome);
         }
@@ -138,8 +138,9 @@ export class ResultWaiter<T = unknown> {
   /**
    * Reads `id`, or gives way when `wait` settles or closes first. Each read races a promise of its own: a race stays
    * subscribed to a promise until that settles, so one promise for the whole wait would keep every read's race.
+   * Not `read`: a private member of that name would stop a subclass declaring one of its own.
    */
-  private read(id: string, wait: Wait<T>): Promise<ResultOutcome<T> | null | typeof SETTLED> {
+  private readOrGiveWay(id: string, wait: Wait<T>): Promise<ResultOutcome<T> | null | typeof SETTLED> {
     const givenWay = new Promise<typeof SETTLED>((resolve) => (wait.settle = () => resolve(SETTLED)));
     return Promise.race([this.options.read(id), givenWay]);
   }
