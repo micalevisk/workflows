@@ -5,6 +5,7 @@
  * `WorkflowClient.result()`.
  */
 import { ResultWaiter, type ResultOutcome } from '../../lib/core/index.js';
+import { heapUsed } from '../support/heap.js';
 
 class Timeout extends Error {
   constructor(
@@ -198,5 +199,35 @@ describe('ResultWaiter', () => {
     // The read isn't cancelled: the wait gives up on the loop's next turn, late rather than never.
     expect(reads).toBe(1);
     expect(performance.now() - started).toBeGreaterThanOrEqual(45);
+  });
+
+  it('keeps nothing per read while a wait goes on, however long it waits', async () => {
+    let reads = 0;
+    const waiter = new ResultWaiter<string>({ read: async () => (reads++, null) });
+    // Only the backoff's sleeps are faked: the wait reads 20,000 times in a moment, each read answering in turn.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const result = waiter.wait('report').catch((error: Error) => error.message);
+    /** Lets the wait read `n` more times. */
+    const polls = async (n: number) => {
+      for (const until = reads + n; reads < until; ) {
+        await new Promise((resolve) => setImmediate(resolve));
+        vi.advanceTimersByTime(1_000);
+      }
+    };
+
+    let kept: number;
+    try {
+      await polls(100);
+      const before = heapUsed();
+      await polls(20_000);
+      kept = heapUsed() - before;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await waiter.close();
+    expect(await result).toBe('The waiter closed while waiting for the result of "report".');
+    // Each read raced a promise that lived as long as the wait: about 300 bytes a read, 6 MB here.
+    expect(kept).toBeLessThan(1_000_000);
   });
 });
