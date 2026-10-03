@@ -207,9 +207,13 @@ describe('ResultWaiter', () => {
     // Only the backoff's sleeps are faked: the wait reads 20,000 times in a moment, each read answering in turn.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const result = waiter.wait('report').catch((error: Error) => error.message);
-    /** Lets the wait read `n` more times. */
+    /** Lets the wait read `n` more times, or says where it stopped reading. */
     const polls = async (n: number) => {
-      for (const until = reads + n; reads < until; ) {
+      const until = reads + n;
+      for (let turns = 0; reads < until; turns++) {
+        if (turns > n * 2 + 1_000) {
+          throw new Error(`the wait stopped reading at ${reads} of ${until}`);
+        }
         await new Promise((resolve) => setImmediate(resolve));
         vi.advanceTimersByTime(1_000);
       }
@@ -229,5 +233,5 @@ describe('ResultWaiter', () => {
     expect(await result).toBe('The waiter closed while waiting for the result of "report".');
     // Each read raced a promise that lived as long as the wait: about 300 bytes a read, 6 MB here.
     expect(kept).toBeLessThan(1_000_000);
-  });
+  }, 30_000);
 });

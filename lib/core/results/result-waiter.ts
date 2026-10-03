@@ -9,7 +9,7 @@ const SETTLED = Symbol('settled');
 interface Wait<T> {
   outcome?: ResultOutcome<T>;
   closed: boolean;
-  /** Gives way the read in flight, so a local outcome or the close needn't wait for the store. */
+  /** Resolves the promise the read in flight races, so a local outcome or the close needn't wait for the store. Each read replaces it. */
   settle(): void;
   /** Ends the backoff's sleep early. */
   wake?: () => void;
