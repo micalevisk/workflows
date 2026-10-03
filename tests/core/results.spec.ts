@@ -231,7 +231,7 @@ describe('ResultWaiter', () => {
 
     await waiter.close();
     expect(await result).toBe('The waiter closed while waiting for the result of "report".');
-    // Each read raced a promise that lived as long as the wait: about 300 bytes a read, 6 MB here.
+    // Each read used to race a promise that lived as long as the wait: about 300 bytes a read, 6 MB here.
     expect(kept).toBeLessThan(1_000_000);
   }, 30_000);
 });
